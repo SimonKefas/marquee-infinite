@@ -33,7 +33,7 @@ This is a **highly customizable, smooth, and infinitely looping marquee** that c
 ### **2️⃣ Add the CSS**
 ```css
 [mq="wrap"] {
-  overflow: hidden;
+  overflow: hidden; /* OPTIONAL: This can be added on parent section instead */
   white-space: nowrap;
   position: relative;
   display: flex;
