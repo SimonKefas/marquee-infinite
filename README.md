@@ -23,7 +23,7 @@ This is a **highly customizable, smooth, and infinitely looping marquee** that c
 ```html
 <div mq="wrap" mq-direction="left" mq-fullscreen mq-gap="20">
   <div mq="list">
-    <div class="marquee-item">NAV</div>
+    <div class="marquee-item">NAV</div> <!-- Classname not required for any of these -->
     <div class="marquee-item">Norwegian✈</div>
     <div class="marquee-item">DNB</div>
     <div class="marquee-item">Røde Kors</div>
