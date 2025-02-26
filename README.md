@@ -49,7 +49,7 @@ This is a **highly customizable, smooth, and infinitely looping marquee** that c
 }
 ```
 
-### **3️⃣ Add the Script before </Body> tag**
+### **3️⃣ Add the Script before Body tag**
 ```html
 <script src="https://cdn.jsdelivr.net/gh/SimonKefas/marquee-infinite@latest/script.js"></script>
 ```
