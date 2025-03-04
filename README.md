@@ -1,253 +1,172 @@
-# Infinite Horizontal Scroll (Marquee) – Documentation
+# marquee-infinite
 
-This repository contains a **vanilla JavaScript** solution for creating a performant, infinitely scrolling horizontal marquee effect. It uses modern best practices like `requestAnimationFrame`, flex-based layout, and attribute-based configuration.
+A lightweight, **vanilla JavaScript** solution for creating infinitely scrolling horizontal marquees. It allows you to configure **speed**, **direction**, and **pause‐on‐hover** via simple HTML attributes.
+
+---
 
 ## Table of Contents
 
-1. [Features](#features)  
-2. [Requirements](#requirements)  
-3. [Usage & Setup](#usage--setup)  
+1. [Installation](#installation)  
+2. [Usage](#usage)  
    - [HTML Structure](#html-structure)  
-   - [CSS](#css)  
-   - [JavaScript](#javascript)  
-4. [Configuration Attributes](#configuration-attributes)  
+   - [Script Reference](#script-reference)  
+   - [CSS Example](#css-example)  
+3. [Attributes](#attributes)  
    - [data-speed](#data-speed)  
+   - [data-direction](#data-direction)  
    - [data-pause-hover](#data-pause-hover)  
-5. [Advanced Notes & Customization](#advanced-notes--customization)  
-   - [Responsive / Dynamic Width Changes](#responsive--dynamic-width-changes)  
-   - [Different Speeds per Marquee](#different-speeds-per-marquee)  
-   - [Pause on Hover](#pause-on-hover)  
-   - [Gap Handling](#gap-handling)  
-6. [License](#license)
+4. [Advanced Notes](#advanced-notes)  
+5. [License](#license)
 
 ---
 
-## Features
+## Installation
 
-- **Infinite Looping**: Content appears to scroll continuously from right to left with no visible breaks.  
-- **Flex Layout**: `.mq-inner` is a flex container that supports CSS `gap`, making it easy to adjust spacing between lists.  
-- **Attribute-Based Configuration**: Each marquee can have a custom scroll speed and an optional “pause on hover” behavior.  
-- **Performant Animations**: Uses `requestAnimationFrame` and hardware-accelerated transforms (`will-change: transform` in CSS).  
-- **Lightweight, No Dependencies**: Pure vanilla JavaScript, minimal DOM manipulation.
+No special build steps are required. Simply load the **marquee‐infinite** script via the following `<script>` tag near the end of your HTML (e.g., right before `</body>`).
 
----
+```html
+<script src="https://cdn.jsdelivr.net/gh/SimonKefas/marquee-infinite@latest/script.js"></script>
+```
 
-## Requirements
-
-- A **modern browser** that supports ES5+ JavaScript, `requestAnimationFrame`, and `Flexbox`.
-- Basic knowledge of HTML/CSS to integrate it into your project.  
-- No external libraries (like jQuery) are required.
+This script automatically scans your page for elements marked with `[mq="wrap"]` and initializes the marquee effect.
 
 ---
 
-## Usage & Setup
+## Usage
 
 ### HTML Structure
 
-Your basic markup for each marquee container is:
+Each marquee consists of:
 
 ```html
-<!-- One marquee container -->
-<div mq="wrap" data-speed="0.8" data-pause-hover="true">
+<div mq="wrap" data-speed="1" data-direction="left" data-pause-hover="true">
   <div mq="list">
     <!-- Repeated items, images, or any HTML content -->
     <div>Item 1</div>
     <div>Item 2</div>
     <div>Item 3</div>
-    ...
   </div>
 </div>
 ```
 
-**Key points**:  
-- `mq="wrap"` is the outer container that will be cropped to prevent scrollbars from showing the overflow.  
-- Inside it, there must be exactly one `mq="list"` element containing your marquee items.
+- **`mq="wrap"`**: The marquee wrapper that clips the overflowing content.  
+- **`mq="list"`**: A single list (or block) of items you want to scroll infinitely.
 
-### CSS
+You can have multiple `[mq="wrap"]` elements on the same page, each with its own `[mq="list"]`.
 
-You are free to style this as you like, but **the JavaScript expects** a **flex container** for the scrolled content. We do this by dynamically creating a `.mq-inner` inside `[mq="wrap"]`, and moving `[mq="list"]` into it. A minimal example:
+### Script Reference
+
+Include the script near the end of `<body>` so it can process your `[mq="wrap"]` elements:
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/SimonKefas/marquee-infinite@latest/script.js"></script>
+</body>
+</html>
+```
+
+When the page loads, the script automatically:
+
+1. Finds each `[mq="wrap"]`.  
+2. Creates an internal `.mq-inner` container.  
+3. Clones `[mq="list"]` multiple times to ensure continuous scrolling.  
+4. Animates the content based on your attributes (speed, direction, pause on hover).
+
+### CSS Example
+
+A minimal CSS setup might look like this:
 
 ```css
 [mq="wrap"] {
   position: relative;
-  overflow: hidden; /* Hides the overflowing content */
-  width: 100%; /* or a fixed width */
-  border: 1px solid #aaa; /* For visual demo only */
+  overflow: hidden;
+  width: 100%; /* or a fixed width if you prefer */
+  border: 1px solid #aaa; /* for demo visibility */
+  margin-bottom: 2rem;
 }
 
 .mq-inner {
   display: flex;
   white-space: nowrap;
-  will-change: transform; /* Helps performance on some browsers */
-  gap: 1rem; /* Default gap between marquee lists/items */
+  will-change: transform;
+  gap: 1rem; /* default gap between consecutive lists/items */
 }
 
+/* Example: Bigger gap for wider screens */
 @media (min-width: 768px) {
   .mq-inner {
-    gap: 2.5rem; /* Example: a larger gap for bigger screens */
+    gap: 2.5rem;
   }
 }
 
 [mq="list"] {
-  flex-shrink: 0; /* Don’t shrink these blocks */
+  flex-shrink: 0; /* Each entire list is one 'block' */
 }
 
-/* Example item styling inside the list */
+/* Simple item styling (optional) */
 [mq="list"] > * {
   padding: 1rem;
   border-right: 1px solid #ccc;
-  display: inline-block;
 }
 ```
 
-You can customize widths, gaps, or add your own design. The marquee code will measure the actual width plus gap, so the loop remains smooth.
-
-### JavaScript
-
-Include the following script on your page **after** your HTML. You can place it in a separate `.js` file or inline in a `<script>` tag.
-
-```js
-document.addEventListener('DOMContentLoaded', function() {
-  /**
-   * Infinite Horizontal Scroll (Marquee) with:
-   * 1) data-speed="<number>" attribute to control speed per [mq="wrap"].
-   * 2) data-pause-hover="true" to pause animation on hover.
-   *
-   * If data-speed is missing or invalid, it falls back to DEFAULT_SPEED.
-   * If data-pause-hover is "true", hovering on that marquee pauses the scroll.
-   * Otherwise, it remains always scrolling.
-   */
-
-  const DEFAULT_SPEED = 0.5; // Fallback speed if no data-speed is specified
-
-  const wraps = document.querySelectorAll('[mq="wrap"]');
-  wraps.forEach(initMarquee);
-
-  function initMarquee(wrapElem) {
-    const originalList = wrapElem.querySelector('[mq="list"]');
-    if (!originalList) return; // No list found, abort initialization
-
-    // Read the speed from data attribute (or fallback to default)
-    const attrSpeed = parseFloat(wrapElem.getAttribute('data-speed'));
-    const SCROLL_SPEED = isNaN(attrSpeed) ? DEFAULT_SPEED : attrSpeed;
-
-    // Check if we should pause on hover (data-pause-hover="true")
-    const dataPauseValue = wrapElem.getAttribute('data-pause-hover');
-    const PAUSE_ON_HOVER = dataPauseValue && dataPauseValue.toLowerCase() === 'true';
-
-    // 1) Create a .mq-inner wrapper
-    const inner = document.createElement('div');
-    inner.classList.add('mq-inner');
-    wrapElem.appendChild(inner);
-
-    // 2) Move the original [mq="list"] into .mq-inner
-    inner.appendChild(originalList);
-
-    // 3) Clone [mq="list"] once to measure the total width (including gap)
-    const clone = originalList.cloneNode(true);
-    inner.appendChild(clone);
-
-    const lists = inner.children; 
-    if (lists.length < 2) return;
-
-    // Measure the distance from the first block's left to the second block's left
-    const rect1 = lists[0].getBoundingClientRect();
-    const rect2 = lists[1].getBoundingClientRect();
-    const listGapWidth = rect2.left - rect1.left; // includes flex gap
-
-    // Remove the temporary clone
-    inner.removeChild(clone);
-
-    // 4) Duplicate until total width >= 2x the container width
-    const wrapWidth = wrapElem.offsetWidth;
-    let totalWidth = listGapWidth;
-    while (totalWidth < wrapWidth * 2) {
-      const c = originalList.cloneNode(true);
-      inner.appendChild(c);
-      totalWidth += listGapWidth;
-    }
-
-    // 5) Animate with requestAnimationFrame
-    let offset = 0;
-    let paused = false;
-
-    // Pause on hover if requested
-    if (PAUSE_ON_HOVER) {
-      wrapElem.addEventListener('mouseenter', () => { paused = true; });
-      wrapElem.addEventListener('mouseleave', () => { paused = false; });
-    }
-
-    function animate() {
-      if (!paused) {
-        offset -= SCROLL_SPEED;
-        // Snap offset back by one full block (list + gap) when scrolled fully
-        if (Math.abs(offset) >= listGapWidth) {
-          offset += listGapWidth;
-        }
-        inner.style.transform = `translateX(${offset}px)`;
-      }
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-  }
-});
-```
+Feel free to customize the styling, width, gaps, or item layouts as needed. The script measures the final computed width and gaps automatically, ensuring seamless looping.
 
 ---
 
-## Configuration Attributes
+## Attributes
+
+You can tailor each marquee by adding these attributes to the `[mq="wrap"]` element:
 
 ### `data-speed`
 
-- **Usage**: `data-speed="1"`, `data-speed="0.3"`, etc.
-- **Type**: Number (pixels per frame)
-- **Description**: Determines how many pixels per animation frame the marquee will move.  
-- **Default**: If absent or invalid, uses `DEFAULT_SPEED = 0.5`.
+- **Type**: Number (pixels per animation frame).  
+- **Usage**:  
+  ```html
+  <div mq="wrap" data-speed="2">
+    <div mq="list"> ... </div>
+  </div>
+  ```
+- **Default**: `0.5` (if omitted or invalid).  
+- **Effect**: How many pixels the marquee moves per frame. Larger values = faster scrolling.
+
+### `data-direction`
+
+- **Type**: `"left"` or `"right"`.  
+- **Usage**:  
+  ```html
+  <div mq="wrap" data-direction="right">
+    <div mq="list"> ... </div>
+  </div>
+  ```
+- **Default**: `"left"` (if omitted or invalid).  
+- **Effect**: Which direction the content scrolls. If `"left"`, content moves leftward and enters from the right. If `"right"`, content moves rightward and enters from the left.
 
 ### `data-pause-hover`
 
-- **Usage**: `data-pause-hover="true"`
-- **Type**: Boolean (expects the string `"true"` to enable pausing)
-- **Description**: If set to `"true"`, the marquee animation will pause when the user hovers over the `[mq="wrap"]`.  
-- **Default**: If not set or set to something else, the marquee scroll is never paused on hover.
+- **Type**: String `"true"` to enable pause on hover, or omit/false for no pause.  
+- **Usage**:  
+  ```html
+  <div mq="wrap" data-pause-hover="true">
+    <div mq="list"> ... </div>
+  </div>
+  ```
+- **Default**: `false` (if omitted or set to anything else).  
+- **Effect**: If `true`, the marquee will pause when hovered by the mouse.
 
 ---
 
-## Advanced Notes & Customization
+## Advanced Notes
 
-### Responsive / Dynamic Width Changes
-
-By default, the code measures widths on `DOMContentLoaded`. If your layout changes size drastically (e.g. due to window resizing or dynamic content injection), you can:
-
-- **Re-initialize** the marquee logic after the layout changes.
-- Or **debounce** a `window.onresize` event and then re-run the `initMarquee` for each `[mq="wrap"]`.
-
-### Different Speeds per Marquee
-
-Each `[mq="wrap"]` can have its own `data-speed` attribute. For instance:
-```html
-<div mq="wrap" data-speed="0.8"> ... </div>
-<div mq="wrap" data-speed="2"> ... </div>
-```
-This way, you can have multiple, differently animated marquees on the same page.
-
-### Pause on Hover
-
-If you only want some marquees to pause on hover, set `data-pause-hover="true"` on those marquees only. Others will continue scrolling even if hovered.
-
-### Gap Handling
-
-Because we measure the **distance between two consecutive `[mq="list"]` blocks** in the flex container, you can freely use `gap` in your CSS. The script will automatically account for that space when duplicating and snapping. This makes it easy to adjust spacing via media queries without breaking the infinite loop alignment.
+- **Multiple Marquees**: You can have any number of `[mq="wrap"]` containers on the same page. Each can have its own `data-speed`, `data-direction`, and `data-pause-hover` settings.  
+- **Responsive Gaps**: Because the script measures the gap via `getBoundingClientRect()`, you can adjust the CSS `gap` in media queries without breaking the infinite loop.  
+- **Images**: If your marquee contains images, ensure they’re loaded for correct width calculations (e.g., place the script after the images or use `window.onload` if needed).  
+- **Dynamic Resizing**: If the container `[mq="wrap"]` size changes drastically, you may need to re‐run the script. In that case, reinitialize or reload the page so widths are measured correctly.  
+- **Performance**: For best results, keep `[mq="wrap"]` content size manageable, and rely on `requestAnimationFrame` for the smooth animation (already in the script).  
 
 ---
 
 ## License
 
-(This is an example section – include your actual license if needed.)
+[MIT License](./LICENSE) – You’re free to use, modify, and distribute for personal or commercial projects.
 
-MIT License. You’re free to use, modify, and distribute this script for personal or commercial projects. No attribution is strictly required, though it is always appreciated!
-
----
-
-Feel free to **fork**, **modify**, or **extend** this code to fit your specific project needs. If you encounter any issues or want to propose improvements, open an issue or create a pull request. Happy scrolling!
+Enjoy your smooth, customizable, infinite marquees!
