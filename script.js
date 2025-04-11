@@ -1,16 +1,18 @@
 document.addEventListener('DOMContentLoaded', function() {
   /**
-   * Infinite Horizontal Scroll (Marquee)
-   *   - data-speed="<number>" controls the speed (px/frame) per [mq="wrap"].
-   *   - data-pause-hover="true" pauses on hover.
-   *   - data-direction="left" or "right" sets the scroll direction.
-   *
-   * If data-speed is invalid or missing, it falls back to DEFAULT_SPEED (0.5).
+   * Infinite Horizontal Scroll (Marquee) with:
+   *   - data-speed="<number>" to control speed (px/frame) per [mq="wrap"].
+   *   - data-pause-hover="true" to pause on hover.
+   *   - data-direction="left" or "right" to pick which way the content scrolls.
+   * 
+   * If data-speed is missing or invalid, it falls back to DEFAULT_SPEED (0.5).
+   * If data-pause-hover is "true", animation pauses on hover.
+   * If data-direction is "right", content moves right; otherwise, "left".
    */
 
-  const DEFAULT_SPEED = 0.5; // Fallback speed
+  const DEFAULT_SPEED = 0.5; // Fallback speed if no data-speed is specified
 
-  // Get all marquee wrappers
+  // Grab all marquee wrappers
   const wraps = document.querySelectorAll('[mq="wrap"]');
   wraps.forEach(initMarquee);
 
@@ -18,35 +20,57 @@ document.addEventListener('DOMContentLoaded', function() {
     const originalList = wrapElem.querySelector('[mq="list"]');
     if (!originalList) return;
 
-    // 1) Read user-defined attributes
+    // 1) Get user-defined attributes
+    // Speed
     const attrSpeed = parseFloat(wrapElem.getAttribute('data-speed'));
     const SCROLL_SPEED = isNaN(attrSpeed) ? DEFAULT_SPEED : attrSpeed;
 
-    const PAUSE_ON_HOVER = (wrapElem.getAttribute('data-pause-hover') || '').toLowerCase() === 'true';
-    const direction = ((wrapElem.getAttribute('data-direction') || '').toLowerCase() === 'right') ? 'right' : 'left';
+    // Pause on Hover
+    const dataPauseValue = wrapElem.getAttribute('data-pause-hover');
+    const PAUSE_ON_HOVER = dataPauseValue && dataPauseValue.toLowerCase() === 'true';
 
-    // 2) Create an inner container and move [mq="list"] into it
+    // Direction
+    const dataDirValue = wrapElem.getAttribute('data-direction');
+    // defaults to 'left' if none or invalid
+    const direction = (dataDirValue && dataDirValue.toLowerCase() === 'right')
+      ? 'right'
+      : 'left';
+
+    // 2) Create a .mq-inner container and move the [mq="list"] into it
     const inner = document.createElement('div');
     inner.classList.add('mq-inner');
     wrapElem.appendChild(inner);
     inner.appendChild(originalList);
 
-    // 3) Measure the content width of the original list
-    const listWidth = originalList.getBoundingClientRect().width;
+    // 3) Temporarily clone the list to measure distance (including gap)
+    const clone = originalList.cloneNode(true);
+    inner.appendChild(clone);
 
-    // 4) Duplicate the list until total width >= (wrap width + list width)
-    // This ensures there is always a copy coming in when one scrolls out.
-    let totalWidth = listWidth;
-    while (totalWidth < wrapElem.offsetWidth + listWidth) {
-      const clone = originalList.cloneNode(true);
-      inner.appendChild(clone);
-      totalWidth += listWidth;
+    const lists = inner.children;
+    if (lists.length < 2) return;
+
+    // distance from left-edge of first child to left-edge of second child
+    const rect1 = lists[0].getBoundingClientRect();
+    const rect2 = lists[1].getBoundingClientRect();
+    const listGapWidth = rect2.left - rect1.left; // includes flex gap
+
+    // remove the temporary clone
+    inner.removeChild(clone);
+
+    // 4) Duplicate the [mq="list"] until total width >= 2 * wrap width
+    const wrapWidth = wrapElem.offsetWidth;
+    let totalWidth = listGapWidth;
+    while (totalWidth < wrapWidth * 2) {
+      const c = originalList.cloneNode(true);
+      inner.appendChild(c);
+      totalWidth += listGapWidth;
     }
 
-    // 5) Animate the marquee
-    let offset = 0;
+    // 5) Animate with requestAnimationFrame
+    let offset = 0; 
     let paused = false;
 
+    // If user wants pause on hover, set up event listeners
     if (PAUSE_ON_HOVER) {
       wrapElem.addEventListener('mouseenter', () => { paused = true; });
       wrapElem.addEventListener('mouseleave', () => { paused = false; });
@@ -56,14 +80,16 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!paused) {
         if (direction === 'left') {
           offset -= SCROLL_SPEED;
-          // Once we've scrolled one full copy's width, snap back
-          if (offset <= -listWidth) {
-            offset += listWidth;
+          // If we've scrolled one block's width to the left, snap back
+          if (offset <= -listGapWidth) {
+            offset += listGapWidth;
           }
         } else {
+          // direction === 'right'
           offset += SCROLL_SPEED;
-          if (offset >= listWidth) {
-            offset -= listWidth;
+          // If we've scrolled one block's width to the right, snap back
+          if (offset >= listGapWidth) {
+            offset -= listGapWidth;
           }
         }
         inner.style.transform = `translateX(${offset}px)`;
