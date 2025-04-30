@@ -1,81 +1,76 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const DEFAULT_SPEED = 0.5;                                         // px / frame
+  const DEFAULT_SPEED = 0.5;                                   // px / frame
 
   document.querySelectorAll('[mq="wrap"]').forEach(wrap => {
-    /* ──────────────────────────────────────────────────────────
-       Stash a *pristine* copy of the list markup for reuse
-       ─────────────────────────────────────────────────────── */
-    const pristineMarkup = wrap.querySelector('[mq="list"]')?.outerHTML;
-    if (!pristineMarkup) return;                                    // nothing to animate
+    /* Keep a pristine copy of the list for every rebuild */
+    const pristine = wrap.querySelector('[mq="list"]')?.outerHTML;
+    if (!pristine) return;
 
-    let rafId   = null;                                             // current rAF id
-    let innerEl = null;                                             // the .mq-inner
-    let lastW   = wrap.offsetWidth;                                 // track width
+    let rafId = null;
+    let inner = null;
+    let lastW = wrap.offsetWidth;
 
-    build();                                                        // initial build
-    observeSize();                                                  // watch wrapper size
+    build();                              // first paint
+    observeSize();                        // rebuild only on real width changes
 
-    /* =========================================================
-       BUILD (or REBUILD) ONE MARQUEE
-       ======================================================= */
+    /* -------- build / rebuild one marquee ---------------- */
     function build() {
-      /* 1  Clean up anything from a previous build */
-      if (rafId)  cancelAnimationFrame(rafId);
-      innerEl?.remove();                                            // removes old & its clones
+      if (rafId) cancelAnimationFrame(rafId);
+      inner?.remove();                    // remove old strip & clones
 
-      /* 2  Ensure exactly ONE list is back inside the wrapper */
-      wrap.querySelector('[mq="list"]')?.remove();                  // stray copy (if any)
-      wrap.insertAdjacentHTML('afterbegin', pristineMarkup);        // fresh copy
-      const list = wrap.querySelector('[mq="list"]');               // will be moved next
+      /* ensure ONE fresh list is back inside the wrapper */
+      wrap.querySelector('[mq="list"]')?.remove();
+      wrap.insertAdjacentHTML('afterbegin', pristine);
+      const list = wrap.querySelector('[mq="list"]');   // will move next
 
-      /* 3  Read per-instance data-attributes */
+      /* read instance options */
       const SPEED      = +wrap.dataset.speed || DEFAULT_SPEED;
-      const dirFactor  = (wrap.dataset.direction || 'left').toLowerCase() === 'right' ? 1 : -1;
-      const pauseHover = (wrap.dataset.pauseHover || '').toLowerCase() === 'true';
+      const dir        = (wrap.dataset.direction || 'left').toLowerCase()==='right' ? 1 : -1;
+      const PAUSE_HOV  = (wrap.dataset.pauseHover || '').toLowerCase()==='true';
 
-      /* 4  Build the flex strip and MOVE the list into it */
-      innerEl = document.createElement('div');
-      innerEl.className = 'mq-inner';
-      wrap.appendChild(innerEl);
-      innerEl.appendChild(list);                                    // move (not copy)
+      /* build the flex strip */
+      inner = document.createElement('div');
+      inner.className = 'mq-inner';
+      wrap.appendChild(inner);
+      inner.appendChild(list);            // move, don't copy
 
-      /* 5  Measure one “block” = list width + gap */
-      const gap        = parseFloat(getComputedStyle(innerEl).gap) || 0;
-      const blockWidth = Math.round(list.offsetWidth + gap);        // integer px
+      /* measure one block */
+      const gap   = parseFloat(getComputedStyle(inner).gap) || 0;
+      const block = Math.round(list.offsetWidth + gap);
 
-      /* 6  Clone until we cover ≥ 2 × wrapper width */
-      for (let w = blockWidth; w < wrap.offsetWidth * 2; w += blockWidth) {
-        innerEl.insertAdjacentHTML('beforeend', pristineMarkup);
+      /* duplicate until ≥ 2×wrapper OR we have <2 blocks  */
+      let totW = block;
+      while (totW < wrap.offsetWidth * 2 || inner.children.length < 2) {
+        inner.insertAdjacentHTML('beforeend', pristine);
+        totW += block;
       }
 
-      /* 7  Optional pause-on-hover */
+      /* optional pause-on-hover */
       let paused = false;
-      if (pauseHover) {
-        wrap.onmouseenter = () => (paused = true);
-        wrap.onmouseleave = () => (paused = false);
+      if (PAUSE_HOV) {
+        wrap.onmouseenter = () => paused = true;
+        wrap.onmouseleave = () => paused = false;
       }
 
-      /* 8  Animate with modulo (no drift) */
-      let offset = 0;                                               // stays in [-block, 0)
+      /* animate */
+      let offset = 0;                     // stays in [-block,0)
       (function step() {
         if (!paused) {
-          offset = (offset + dirFactor * SPEED) % blockWidth;
-          if (offset > 0) offset -= blockWidth;                     // normalise
-          innerEl.style.transform = `translateX(${offset}px)`;
+          offset = (offset + dir * SPEED) % block;
+          if (offset > 0) offset -= block;
+          inner.style.transform = `translateX(${offset}px)`;
         }
         rafId = requestAnimationFrame(step);
       })();
     }
 
-    /* =========================================================
-       WATCH THE WRAPPER SIZE ONLY – real changes, not URL-bar jiggles
-       ======================================================= */
+    /* -------- watch just the wrapper’s width ------------- */
     function observeSize() {
       new ResizeObserver(() => {
         const w = wrap.offsetWidth;
-        if (w !== lastW) {                                          // real width change
+        if (w !== lastW) {
           lastW = w;
-          build();                                                  // rebuild once
+          build();
         }
       }).observe(wrap);
     }
