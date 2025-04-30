@@ -1,101 +1,99 @@
-document.addEventListener('DOMContentLoaded', function() {
-  /**
-   * Infinite Horizontal Scroll (Marquee) with:
-   *   - data-speed="<number>" to control speed (px/frame) per [mq="wrap"].
-   *   - data-pause-hover="true" to pause on hover.
-   *   - data-direction="left" or "right" to pick which way the content scrolls.
-   * 
-   * If data-speed is missing or invalid, it falls back to DEFAULT_SPEED (0.5).
-   * If data-pause-hover is "true", animation pauses on hover.
-   * If data-direction is "right", content moves right; otherwise, "left".
-   */
+document.addEventListener('DOMContentLoaded', () => {
+  const DEFAULT_SPEED = 0.5;                           // px per frame
 
-  const DEFAULT_SPEED = 0.5; // Fallback speed if no data-speed is specified
+  document.querySelectorAll('[mq="wrap"]').forEach(wrap => {
+    /* ----------------------------------------------------------------
+     *  Keep the original <[mq="list"]> markup around so we can rebuild
+     *  the marquee after a resize.
+     * ---------------------------------------------------------------- */
+    const originalList = wrap.querySelector('[mq="list"]');
+    if (!originalList) return;                          // nothing to do
+    const listMarkup = originalList.outerHTML;          // stash
 
-  // Grab all marquee wrappers
-  const wraps = document.querySelectorAll('[mq="wrap"]');
-  wraps.forEach(initMarquee);
+    let rafId;                                          // current animation frame id
 
-  function initMarquee(wrapElem) {
-    const originalList = wrapElem.querySelector('[mq="list"]');
-    if (!originalList) return;
+    /* ---- build once, then rebuild (debounced) on resize ------------- */
+    build();
+    window.addEventListener('resize', debounce(rebuild, 200));
 
-    // 1) Get user-defined attributes
-    // Speed
-    const attrSpeed = parseFloat(wrapElem.getAttribute('data-speed'));
-    const SCROLL_SPEED = isNaN(attrSpeed) ? DEFAULT_SPEED : attrSpeed;
+    /* =================================================================
+     *  BUILD ONE MARQUEE INSTANCE
+     * ================================================================= */
+    function build() {
+      /* ...............................................................
+       *  1.  Read data-attributes
+       * ............................................................... */
+      const SCROLL_SPEED   = +(wrap.dataset.speed) || DEFAULT_SPEED;
+      const direction      = (wrap.dataset.direction || 'left').toLowerCase() === 'right' ? 'right' : 'left';
+      const PAUSE_ON_HOVER = (wrap.dataset.pauseHover || '').toLowerCase() === 'true';
 
-    // Pause on Hover
-    const dataPauseValue = wrapElem.getAttribute('data-pause-hover');
-    const PAUSE_ON_HOVER = dataPauseValue && dataPauseValue.toLowerCase() === 'true';
+      /* ...............................................................
+       *  2.  Create inner flex-strip and measure its “block” width
+       * ............................................................... */
+      const inner = document.createElement('div');
+      inner.className = 'mq-inner';
+      wrap.appendChild(inner);
+      inner.insertAdjacentHTML('beforeend', listMarkup);
 
-    // Direction
-    const dataDirValue = wrapElem.getAttribute('data-direction');
-    // defaults to 'left' if none or invalid
-    const direction = (dataDirValue && dataDirValue.toLowerCase() === 'right')
-      ? 'right'
-      : 'left';
+      const gap           = parseFloat(getComputedStyle(inner).gap) || 0;
+      const listWidth     = inner.firstElementChild.offsetWidth;
+      const blockWidth    = Math.round(listWidth + gap);      // integer px
+      const wrapWidth     = wrap.offsetWidth;
 
-    // 2) Create a .mq-inner container and move the [mq="list"] into it
-    const inner = document.createElement('div');
-    inner.classList.add('mq-inner');
-    wrapElem.appendChild(inner);
-    inner.appendChild(originalList);
-
-    // 3) Temporarily clone the list to measure distance (including gap)
-    const clone = originalList.cloneNode(true);
-    inner.appendChild(clone);
-
-    const lists = inner.children;
-    if (lists.length < 2) return;
-
-    // distance from left-edge of first child to left-edge of second child
-    const rect1 = lists[0].getBoundingClientRect();
-    const rect2 = lists[1].getBoundingClientRect();
-    const listGapWidth = rect2.left - rect1.left; // includes flex gap
-
-    // remove the temporary clone
-    inner.removeChild(clone);
-
-    // 4) Duplicate the [mq="list"] until total width >= 2 * wrap width
-    const wrapWidth = wrapElem.offsetWidth;
-    let totalWidth = listGapWidth;
-    while (totalWidth < wrapWidth * 2) {
-      const c = originalList.cloneNode(true);
-      inner.appendChild(c);
-      totalWidth += listGapWidth;
-    }
-
-    // 5) Animate with requestAnimationFrame
-    let offset = 0; 
-    let paused = false;
-
-    // If user wants pause on hover, set up event listeners
-    if (PAUSE_ON_HOVER) {
-      wrapElem.addEventListener('mouseenter', () => { paused = true; });
-      wrapElem.addEventListener('mouseleave', () => { paused = false; });
-    }
-
-    function animate() {
-      if (!paused) {
-        if (direction === 'left') {
-          offset -= SCROLL_SPEED;
-          // If we've scrolled one block's width to the left, snap back
-          if (offset <= -listGapWidth) {
-            offset += listGapWidth;
-          }
-        } else {
-          // direction === 'right'
-          offset += SCROLL_SPEED;
-          // If we've scrolled one block's width to the right, snap back
-          if (offset >= listGapWidth) {
-            offset -= listGapWidth;
-          }
-        }
-        inner.style.transform = `translateX(${offset}px)`;
+      /* ...............................................................
+       *  3.  Duplicate until we have ≥ 2 × wrapWidth
+       * ............................................................... */
+      let totalWidth = blockWidth;
+      while (totalWidth < wrapWidth * 2) {
+        inner.insertAdjacentHTML('beforeend', listMarkup);
+        totalWidth += blockWidth;
       }
-      requestAnimationFrame(animate);
+
+      /* ...............................................................
+       *  4.  Handle optional pause-on-hover
+       * ............................................................... */
+      let paused = false;
+      if (PAUSE_ON_HOVER) {
+        wrap.addEventListener('mouseenter', () => paused = true);
+        wrap.addEventListener('mouseleave', () => paused = false);
+      }
+
+      /* ...............................................................
+       *  5.  Animate with modulo to avoid drift
+       * ............................................................... */
+      let offset = 0;                                   // always in [-blockWidth, 0)
+      function step() {
+        if (!paused) {
+          offset = direction === 'left'
+            ? (offset - SCROLL_SPEED) % blockWidth
+            : (offset + SCROLL_SPEED) % blockWidth;
+
+          if (offset > 0) offset -= blockWidth;         // normalise
+          inner.style.transform = `translateX(${offset}px)`;
+        }
+        rafId = requestAnimationFrame(step);
+      }
+      step();
     }
-    animate();
-  }
+
+    /* =================================================================
+     *  REBUILD (called after a resize)
+     * ================================================================= */
+    function rebuild() {
+      cancelAnimationFrame(rafId);                      // stop old loop
+      wrap.querySelector('.mq-inner')?.remove();        // clear old DOM
+      build();                                          // fresh build
+    }
+
+    /* =================================================================
+     *  Small debounce helper
+     * ================================================================= */
+    function debounce(fn, delay = 200) {
+      let t;
+      return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), delay);
+      };
+    }
+  });
 });
