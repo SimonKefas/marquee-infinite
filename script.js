@@ -1,80 +1,83 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const DEFAULT_SPEED = 0.5;                                       // px / frame
+  const DEFAULT_SPEED = 0.5;                                         // px / frame
 
   document.querySelectorAll('[mq="wrap"]').forEach(wrap => {
-    let rafId = null;                                              // current rAF id
-    let lastWrapWidth = wrap.offsetWidth;                          // track width
-    let resizeObs;                                                 // ResizeObserver
+    /* ──────────────────────────────────────────────────────────
+       Stash a *pristine* copy of the list markup for reuse
+       ─────────────────────────────────────────────────────── */
+    const pristineMarkup = wrap.querySelector('[mq="list"]')?.outerHTML;
+    if (!pristineMarkup) return;                                    // nothing to animate
 
-    build();                                                       // first build
-    observe();                                                     // watch size
+    let rafId   = null;                                             // current rAF id
+    let innerEl = null;                                             // the .mq-inner
+    let lastW   = wrap.offsetWidth;                                 // track width
+
+    build();                                                        // initial build
+    observeSize();                                                  // watch wrapper size
 
     /* =========================================================
-     * BUILD (or RE-BUILD) ONE MARQUEE
-     * ======================================================= */
+       BUILD (or REBUILD) ONE MARQUEE
+       ======================================================= */
     function build() {
-      // 1. stop and clear anything from a previous build
-      if (rafId) cancelAnimationFrame(rafId);
-      wrap.querySelector('.mq-inner')?.remove();
+      /* 1  Clean up anything from a previous build */
+      if (rafId)  cancelAnimationFrame(rafId);
+      innerEl?.remove();                                            // removes old & its clones
 
-      // 2. grab the *current* [mq="list"] element (the one we will move)
-      const originalList = wrap.querySelector('[mq="list"]');
-      if (!originalList) return;                                   // nothing to animate
+      /* 2  Ensure exactly ONE list is back inside the wrapper */
+      wrap.querySelector('[mq="list"]')?.remove();                  // stray copy (if any)
+      wrap.insertAdjacentHTML('afterbegin', pristineMarkup);        // fresh copy
+      const list = wrap.querySelector('[mq="list"]');               // will be moved next
 
-      const listMarkup = originalList.outerHTML;                   // for cloning later
-
-      // 3. read per-instance data-attributes
-      const SPEED      = +(wrap.dataset.speed) || DEFAULT_SPEED;
+      /* 3  Read per-instance data-attributes */
+      const SPEED      = +wrap.dataset.speed || DEFAULT_SPEED;
       const dirFactor  = (wrap.dataset.direction || 'left').toLowerCase() === 'right' ? 1 : -1;
       const pauseHover = (wrap.dataset.pauseHover || '').toLowerCase() === 'true';
 
-      // 4. build the inner strip and move the list into it
-      const inner = document.createElement('div');
-      inner.className = 'mq-inner';
-      wrap.appendChild(inner);
-      inner.appendChild(originalList);                              // *** move, don’t copy ***
+      /* 4  Build the flex strip and MOVE the list into it */
+      innerEl = document.createElement('div');
+      innerEl.className = 'mq-inner';
+      wrap.appendChild(innerEl);
+      innerEl.appendChild(list);                                    // move (not copy)
 
-      // 5. measure one “block” = list width + gap
-      const gap   = parseFloat(getComputedStyle(inner).gap) || 0;
-      const block = Math.round(originalList.offsetWidth + gap);    // integer px
+      /* 5  Measure one “block” = list width + gap */
+      const gap        = parseFloat(getComputedStyle(innerEl).gap) || 0;
+      const blockWidth = Math.round(list.offsetWidth + gap);        // integer px
 
-      // 6. clone until we cover ≥ 2 × wrapper width
-      let need = wrap.offsetWidth * 2;
-      for (let w = block; w < need; w += block) {
-        inner.insertAdjacentHTML('beforeend', listMarkup);
+      /* 6  Clone until we cover ≥ 2 × wrapper width */
+      for (let w = blockWidth; w < wrap.offsetWidth * 2; w += blockWidth) {
+        innerEl.insertAdjacentHTML('beforeend', pristineMarkup);
       }
 
-      // 7. optional pause on hover
+      /* 7  Optional pause-on-hover */
       let paused = false;
       if (pauseHover) {
         wrap.onmouseenter = () => (paused = true);
         wrap.onmouseleave = () => (paused = false);
       }
 
-      // 8. animate with modulo (no drift)
-      let offset = 0;                                              // keep in [-block, 0)
+      /* 8  Animate with modulo (no drift) */
+      let offset = 0;                                               // stays in [-block, 0)
       (function step() {
         if (!paused) {
-          offset = (offset + dirFactor * SPEED) % block;
-          if (offset > 0) offset -= block;                         // normalise: always ≤ 0
-          inner.style.transform = `translateX(${offset}px)`;
+          offset = (offset + dirFactor * SPEED) % blockWidth;
+          if (offset > 0) offset -= blockWidth;                     // normalise
+          innerEl.style.transform = `translateX(${offset}px)`;
         }
         rafId = requestAnimationFrame(step);
       })();
     }
 
     /* =========================================================
-     * WATCH THE WRAPPER’S SIZE
-     * ======================================================= */
-    function observe() {
-      resizeObs = new ResizeObserver(entries => {
-        const newW = wrap.offsetWidth;
-        if (newW !== lastWrapWidth) {                              // real change?
-          lastWrapWidth = newW;
-          build();                                                 // rebuild once
+       WATCH THE WRAPPER SIZE ONLY – real changes, not URL-bar jiggles
+       ======================================================= */
+    function observeSize() {
+      new ResizeObserver(() => {
+        const w = wrap.offsetWidth;
+        if (w !== lastW) {                                          // real width change
+          lastW = w;
+          build();                                                  // rebuild once
         }
-      });
-      resizeObs.observe(wrap);
+      }).observe(wrap);
     }
   });
 });
