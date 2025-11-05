@@ -35,15 +35,26 @@ document.addEventListener('DOMContentLoaded', () => {
       inner.appendChild(list);            // move, don't copy
 
       /* measure one block */
-      const gap   = parseFloat(getComputedStyle(inner).gap) || 0;
-      const block = Math.round(list.offsetWidth + gap);
+      const gap        = parseFloat(getComputedStyle(inner).gap) || 0;
+      const wrapWidth  = wrap.offsetWidth;
+      const blockWidth = list.getBoundingClientRect().width;
+      const block      = Math.ceil(blockWidth + gap);
 
-      /* duplicate until ≥ 2×wrapper OR we have <2 blocks  */
-      let totW = block;
-      while (totW < wrap.offsetWidth * 2 || inner.children.length < 2) {
-        inner.insertAdjacentHTML('beforeend', pristine);
-        totW += block;
+      if (!Number.isFinite(block) || block <= 0) {
+        console.warn('[marquee-infinite] Ignoring marquee with zero-width content.', wrap);
+        return;
       }
+
+      /* clone just enough lists to cover the viewport + one extra block */
+      const targetWidth = wrapWidth + block;
+      const required    = Math.max(2, Math.ceil(targetWidth / block));
+      const fragment    = document.createDocumentFragment();
+
+      for (let i = 1; i < required; i++) {
+        fragment.appendChild(list.cloneNode(true));
+      }
+
+      inner.appendChild(fragment);
 
       /* optional pause-on-hover */
       let paused = false;
